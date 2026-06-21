@@ -117,11 +117,10 @@ pyro = Client(
 )
 
 
-@pyro.on_message(filters.group)
+@pyro.on_message(filters.all)
 async def delete_media(client: Client, message: Message):
-    logger.info(f"[DEBUG] Mesaj geldi - chat_id={message.chat.id}")
-    if message.chat.id not in GROUP_IDS:
-        logger.info(f"[DEBUG] chat_id GROUP_IDS-de yok: {GROUP_IDS}")
+    logger.info(f"[DEBUG] HER TÜRLÜ mesaj geldi - chat_id={message.chat.id if message.chat else 'YOK'} type={message.chat.type if message.chat else 'YOK'}")
+    if not message.chat or message.chat.id not in GROUP_IDS:
         return
     if not cache_ready:
         logger.info("[DEBUG] cache_ready False")
