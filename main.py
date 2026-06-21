@@ -234,6 +234,18 @@ async def post_init(app: Application):
     except Exception as e:
         logger.warning(f"get_dialogs hatası: {e}")
 
+    # Ek adım: channel state'i senkronize etmek için son mesajları okuyoruz.
+    # Bazı durumlarda dialoglarda görünse bile gerçek zamanlı update gelmiyor,
+    # get_chat_history bu durumu tetikleyip düzeltebiliyor.
+    for gid in GROUP_IDS:
+        try:
+            count = 0
+            async for _ in pyro.get_chat_history(gid, limit=5):
+                count += 1
+            logger.info(f"get_chat_history OK: {gid} ({count} mesaj okundu)")
+        except Exception as e:
+            logger.warning(f"get_chat_history hatası {gid}: {e}")
+
 
 async def post_shutdown(app: Application):
     try:
