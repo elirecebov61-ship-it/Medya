@@ -1,23 +1,29 @@
 """
-Telegram Userbot - Medya Kilit Sistemi (Railway sürümü)
+Telegram Userbot + Bot Hibrit Sistemi (Railway sürümü)
 ----------------------------------------------------------
-/lock  yazdığında, o sohbette gönderilen TÜM medya mesajları
-       (foto, video, sticker, GIF, dosya vb.) anında otomatik silinir.
-/unlock yazdığında kilit kaldırılır.
+Mantık:
+  - USERBOT (senin hesabın, SESSION_STRING ile): grupta medya geldiğinde
+    siler, /lock veya /unlock yazdığında o komut mesajını siler.
+  - BOT (BotFather token ile, BOT_TOKEN): kullanıcıya görünen metin
+    cevaplarını ("Kilit aktif edildi" gibi) gönderir.
 
-NOT: Bu script SENİN kendi Telegram hesabınla çalışır (userbot, bot değil).
-     /lock ve /unlock komutlarını SADECE hesap sahibi (sen) yazabilir,
-     çünkü komutlar "outgoing" (kendi gönderdiğin) mesaj olarak filtrelenir.
+KOMUTLAR (sadece SEN, hesap sahibi, grupta yazınca çalışır):
+  /lock    -> kilidi açar, sonrasında gelen TÜM medyalar (kendi gönderdiğin
+              dahil) otomatik silinir
+  /unlock  -> kilidi kapatır
 
-NOT 2: Grup üyelerinin medyasını silebilmek için o grupta "mesaj silme"
-       yetkisine (admin) sahip olman gerekir.
+GEREKEN ORTAM DEĞİŞKENLERİ (Railway > Variables):
+  API_ID          -> my.telegram.org
+  API_HASH        -> my.telegram.org
+  SESSION_STRING  -> generate_session.py ile üretilir (userbot hesabı)
+  BOT_TOKEN       -> @BotFather'dan alınan token (yeni bir bot oluştur)
 
-Railway'de ortam değişkenleri (Environment Variables) olarak ayarla:
-    API_ID         -> my.telegram.org'dan
-    API_HASH       -> my.telegram.org'dan
-    SESSION_STRING -> generate_session.py çalıştırarak elde edilir
+NOT: BOT_TOKEN ile oluşturduğun botu da gruba EKLEMEN gerekir, aksi halde
+     bot grupta mesaj gönderemez (admin olması gerekmiyor, sadece üye olması
+     yeterli, çünkü silme işini userbot yapıyor).
 """
 
+import asyncio
 import json
 import os
 from telethon import TelegramClient, events
@@ -26,17 +32,24 @@ from telethon.sessions import StringSession
 API_ID = int(os.environ["API_ID"])
 API_HASH = os.environ["API_HASH"]
 SESSION_STRING = os.environ.get("SESSION_STRING", "").strip()
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 
 if not SESSION_STRING:
     raise SystemExit(
         "HATA: SESSION_STRING ortam değişkeni boş veya tanımlı değil.\n"
-        "Railway > Variables bölümünde SESSION_STRING'in dolu olduğundan emin ol,\n"
         "generate_session.py çıktısını TEK SATIR halinde, boşluk/tırnak olmadan yapıştır."
+    )
+
+if not BOT_TOKEN:
+    raise SystemExit(
+        "HATA: BOT_TOKEN ortam değişkeni boş veya tanımlı değil.\n"
+        "@BotFather'dan yeni bir bot oluştur ve token'ı BOT_TOKEN olarak ekle."
     )
 
 STATE_FILE = "lock_state.json"
 
-client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
+user_client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
+bot_client = TelegramClient("bot_session", API_ID, API_HASH)
 
 
 def load_locked_chats():
@@ -54,40 +67,68 @@ def save_locked_chats(chats):
 locked_chats = load_locked_chats()
 
 
-@client.on(events.NewMessage(pattern=r"^/lock$", outgoing=True))
-async def lock_handler(event):
-    locked_chats.add(event.chat_id)
-    save_locked_chats(locked_chats)
-    await event.edit("🔒 Kilit aktif edildi. Bu sohbete gelen tüm medyalar otomatik silinecek.")
+@user_client.on(events.NewMessage(outgoing=True))
+async def command_handler(event):
+    if not event.text:
+        return
+    text = event.text.strip().lower()
 
-
-@client.on(events.NewMessage(pattern=r"^/unlock$", outgoing=True))
-async def unlock_handler(event):
-    if event.chat_id in locked_chats:
-        locked_chats.discard(event.chat_id)
+    if text == "/lock":
+        locked_chats.add(event.chat_id)
         save_locked_chats(locked_chats)
-        await event.edit("🔓 Kilit kaldırıldı. Medya paylaşımına artık izin veriliyor.")
-    else:
-        await event.edit("ℹ️ Bu sohbette kilit zaten aktif değildi.")
+        try:
+            await event.delete()
+        except Exception as e:
+            print(f"komut silme hatası: {e}")
+        try:
+            await bot_client.send_message(
+                event.chat_id,
+                "🔒 Kilit aktif edildi. Bu sohbete gelen tüm medyalar otomatik silinecek.",
+            )
+        except Exception as e:
+            print(f"bot mesaj gönderme hatası: {e}")
+
+    elif text == "/unlock":
+        try:
+            await event.delete()
+        except Exception as e:
+            print(f"komut silme hatası: {e}")
+
+        if event.chat_id in locked_chats:
+            locked_chats.discard(event.chat_id)
+            save_locked_chats(locked_chats)
+            msg = "🔓 Kilit kaldırıldı. Medya paylaşımına artık izin veriliyor."
+        else:
+            msg = "ℹ️ Bu sohbette kilit zaten aktif değildi."
+
+        try:
+            await bot_client.send_message(event.chat_id, msg)
+        except Exception as e:
+            print(f"bot mesaj gönderme hatası: {e}")
 
 
-@client.on(events.NewMessage())
+@user_client.on(events.NewMessage())
 async def media_killer(event):
     if event.chat_id not in locked_chats:
         return
 
-    if event.out:
-        return
-
     if event.media:
+        print(f"[MEDYA SİLİNİYOR] chat_id={event.chat_id}")
         try:
             await event.delete()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"silme hatası: {e}")
 
 
-print("Userbot başlatılıyor...")
-client.start()
-print("Userbot aktif. /lock ve /unlock komutlarını kullanabilirsin.")
-client.run_until_disconnected()
+async def main():
+    print("Userbot ve bot başlatılıyor...")
+    await user_client.start()
+    await bot_client.start(bot_token=BOT_TOKEN)
+    print("Hazır. /lock ve /unlock komutlarını kullanabilirsin.")
+    await asyncio.gather(
+        user_client.run_until_disconnected(),
+        bot_client.run_until_disconnected(),
+    )
 
+
+asyncio.run(main())
