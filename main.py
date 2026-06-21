@@ -119,11 +119,15 @@ pyro = Client(
 
 @pyro.on_message(filters.group)
 async def delete_media(client: Client, message: Message):
+    logger.info(f"[DEBUG] Mesaj geldi - chat_id={message.chat.id}")
     if message.chat.id not in GROUP_IDS:
+        logger.info(f"[DEBUG] chat_id GROUP_IDS-de yok: {GROUP_IDS}")
         return
     if not cache_ready:
+        logger.info("[DEBUG] cache_ready False")
         return
     if not is_locked(message.chat.id):
+        logger.info(f"[DEBUG] kilitli değil, cache_locked={cache_locked}")
         return
 
     media = (
@@ -136,9 +140,11 @@ async def delete_media(client: Client, message: Message):
         message.sticker or
         message.animation
     )
+    logger.info(f"[DEBUG] media var mı: {bool(media)}")
     if media:
         try:
             await message.delete()
+            logger.info("[DEBUG] silindi ✅")
         except Exception as e:
             logger.warning(f"Silme hatası: {e}")
 
