@@ -25,7 +25,14 @@ from telethon.sessions import StringSession
 
 API_ID = int(os.environ["API_ID"])
 API_HASH = os.environ["API_HASH"]
-SESSION_STRING = os.environ["SESSION_STRING"]
+SESSION_STRING = os.environ.get("SESSION_STRING", "").strip()
+
+if not SESSION_STRING:
+    raise SystemExit(
+        "HATA: SESSION_STRING ortam değişkeni boş veya tanımlı değil.\n"
+        "Railway > Variables bölümünde SESSION_STRING'in dolu olduğundan emin ol,\n"
+        "generate_session.py çıktısını TEK SATIR halinde, boşluk/tırnak olmadan yapıştır."
+    )
 
 STATE_FILE = "lock_state.json"
 
@@ -83,3 +90,4 @@ print("Userbot başlatılıyor...")
 client.start()
 print("Userbot aktif. /lock ve /unlock komutlarını kullanabilirsin.")
 client.run_until_disconnected()
+
