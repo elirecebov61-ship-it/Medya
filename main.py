@@ -213,15 +213,21 @@ async def post_init(app: Application):
     await pyro.start()
     logger.info("Pyrogram başladı!")
 
-    # KRİTİK ADIM: yeni session, restart sonrası grup hakkında bilgi
-    # (access_hash) içermiyor. get_chat çağırmadan gerçek zamanlı mesajlar
-    # bazen kaçırılabiliyor. Bu yüzden başlangıçta her grubu mutlaka tanıtıyoruz.
-    for gid in GROUP_IDS:
-        try:
-            chat = await pyro.get_chat(gid)
-            logger.info(f"Grup tanındı: {chat.title} ({gid})")
-        except Exception as e:
-            logger.warning(f"Grup tanınamadı {gid}: {e}")
+    # KRİTİK ADIM: yeni session, restart sonrası hiçbir grup hakkında bilgi
+    # (access_hash) içermiyor. get_dialogs çağırarak tüm grupların peer
+    # bilgisini cache'e yüklüyoruz — bu olmadan get_chat bile "Peer id invalid"
+    # hatası verebiliyor.
+    try:
+        found = set()
+        async for dialog in pyro.get_dialogs():
+            if dialog.chat.id in GROUP_IDS:
+                found.add(dialog.chat.id)
+                logger.info(f"Grup tanındı: {dialog.chat.title} ({dialog.chat.id})")
+        missing = GROUP_IDS - found
+        if missing:
+            logger.warning(f"Şu gruplar dialoglarda bulunamadı: {missing}")
+    except Exception as e:
+        logger.warning(f"get_dialogs hatası: {e}")
 
 
 async def post_shutdown(app: Application):
@@ -250,3 +256,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
