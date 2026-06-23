@@ -22,7 +22,7 @@ SESSION_STRING = os.environ["SESSION_STRING"]
 DATABASE_URL   = os.environ["DATABASE_URL"]
 FOUNDER_ID     = 8034872992
 
-DEV = "\n\n@korunan"
+DEV = "\n\n🛠 Dev. @korunan"
 
 LINK_PATTERN = re.compile(r'(https?://|t\.me/|@\w+)', re.IGNORECASE)
 
