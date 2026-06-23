@@ -20,7 +20,7 @@ API_ID         = int(os.environ["API_ID"])
 API_HASH       = os.environ["API_HASH"]
 SESSION_STRING = os.environ["SESSION_STRING"]
 DATABASE_URL   = os.environ["DATABASE_URL"]
-FOUNDER_ID     = 8789267931
+FOUNDER_ID     = 8034872992
 
 DEV = "\n\n@korunan"
 
