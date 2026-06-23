@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import time
 import asyncio
 from psycopg2 import pool
@@ -21,7 +22,9 @@ SESSION_STRING = os.environ["SESSION_STRING"]
 DATABASE_URL   = os.environ["DATABASE_URL"]
 FOUNDER_ID     = 8789267931
 
-DEV = "\n\n🛠 Dev. @emektas"
+DEV = "\n\n@korunan"
+
+LINK_PATTERN = re.compile(r'(https?://|t\.me/|@\w+)', re.IGNORECASE)
 
 # ── Qrup ID-ləri — buraya əlavə et ───────────────────────────────────────
 GROUP_IDS = [
@@ -148,6 +151,8 @@ async def delete_media_pyro(client, message: Message):
     uid = str(message.from_user.id) if message.from_user else "bot"
     if c_is_exempt(cid, uid):
         return
+
+    # Media yoxla
     media = (
         message.photo or
         message.video or
@@ -158,11 +163,33 @@ async def delete_media_pyro(client, message: Message):
         message.sticker or
         message.animation
     )
-    if media:
+
+    # Link yoxla
+    text = message.text or message.caption or ""
+    has_link = bool(LINK_PATTERN.search(text))
+
+    if media or has_link:
         try:
             await message.delete()
         except Exception as e:
             logger.warning(f"Silme hatası: {e}")
+
+
+@pyro.on_edited_message(filters.group)
+async def delete_edited_pyro(client, message: Message):
+    if not cache_ready:
+        return
+    cid = str(message.chat.id)
+    if not c_is_locked(cid):
+        return
+    uid = str(message.from_user.id) if message.from_user else "bot"
+    if c_is_exempt(cid, uid):
+        return
+    try:
+        await message.delete()
+    except Exception as e:
+        logger.warning(f"Edit silme hatası: {e}")
+
 
 # ── Komutlar ──────────────────────────────────────────────────────────────
 def ensure_group(func):
@@ -355,7 +382,6 @@ async def post_init(app: Application):
     await pyro.start()
     print("Pyrogram başladı!")
 
-    # Qrupları cache-ə yüklə — Peer id invalid xətasının həlli
     print("Qruplar yüklənir...")
     for gid in GROUP_IDS:
         try:
@@ -439,3 +465,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
