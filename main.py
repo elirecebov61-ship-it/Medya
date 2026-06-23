@@ -175,22 +175,6 @@ async def delete_media_pyro(client, message: Message):
             logger.warning(f"Silme hatası: {e}")
 
 
-@pyro.on_edited_message(filters.group)
-async def delete_edited_pyro(client, message: Message):
-    if not cache_ready:
-        return
-    cid = str(message.chat.id)
-    if not c_is_locked(cid):
-        return
-    uid = str(message.from_user.id) if message.from_user else "bot"
-    if c_is_exempt(cid, uid):
-        return
-    try:
-        await message.delete()
-    except Exception as e:
-        logger.warning(f"Edit silme hatası: {e}")
-
-
 # ── Komutlar ──────────────────────────────────────────────────────────────
 def ensure_group(func):
     async def wrapper(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
